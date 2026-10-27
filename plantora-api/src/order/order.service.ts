@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { OrderRepository } from './repository/order.repository';
-import { SellerRepository } from '../seller/seller.repository';
+import { SellerService } from '../seller/seller.service';
 
 import { DataSource } from 'typeorm';
 
@@ -25,19 +25,16 @@ import { CheckoutDto } from './dto/checkout.dto';
 export class OrderService {
     constructor(
         private readonly orderRepository: OrderRepository,
-        private readonly sellerRepository: SellerRepository,
+        private readonly sellerService: SellerService,
         private readonly dataSource: DataSource,
         private readonly userPlantRepository: UserPlantRepository,
     ) {}
 
     async getMyOrders(userId: number) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-        throw new NotFoundException(
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
             'Seller profile not found',
         );
-        }
 
         return this.orderRepository.findBySellerId(
             seller.id,
@@ -48,13 +45,10 @@ export class OrderService {
         userId: number,
         orderId: number,
     ) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException(
-                'Seller profile not found',
-            );
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'Seller profile not found',
+        );
 
         const order = await this.orderRepository.findById(orderId);
 
@@ -64,11 +58,11 @@ export class OrderService {
             );
         }
 
-        if (order.seller_id !== seller.id) {
-            throw new ForbiddenException(
-                'You are not allowed to process this order',
-            );
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            order.seller_id,
+            'You are not allowed to process this order',
+        );
 
         if (order.status !== 'PENDING') {
             throw new BadRequestException(
@@ -85,13 +79,10 @@ export class OrderService {
         userId: number,
         orderId: number,
     ) {
-        const seller =  await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException(
-                'Seller profile not found',
-            );
-        }   
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'Seller profile not found',
+        );
 
         const order = await this.orderRepository.findById(orderId);
 
@@ -101,11 +92,11 @@ export class OrderService {
             );
         } 
 
-        if (order.seller_id !== seller.id) {
-            throw new ForbiddenException(
-                'You are not allowed to process this order',
-            );
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            order.seller_id,
+            'You are not allowed to process this order',
+        );
     
 
         if (order.status !== OrderStatus.CONFIRMED) {
@@ -120,13 +111,10 @@ export class OrderService {
     }
 
     async shipOrder(userId: number, orderId: number) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException(
-                'Seller profile not found',
-            );
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'Seller profile not found',
+        );
 
         const order = await this.orderRepository.findById(orderId);
 
@@ -136,11 +124,11 @@ export class OrderService {
             );
         }
 
-        if (order.seller_id !== seller.id) {
-            throw new ForbiddenException(
-                'You are not allowed to process this order',
-            );
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            order.seller_id,
+            'You are not allowed to process this order',
+        );
 
         if (order.status !== OrderStatus.PROCESSING) {
             throw new BadRequestException(
@@ -154,13 +142,10 @@ export class OrderService {
     }
 
     async deliverOrder(userId: number, orderId: number) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException(
-                'Seller profile not found',
-            );
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'Seller profile not found',
+        );
 
         const order = await this.orderRepository.findById(orderId);
 
@@ -170,11 +155,11 @@ export class OrderService {
             );
         }
 
-        if (order.seller_id !== seller.id) {
-            throw new ForbiddenException(
-                'You are not allowed to process this order',
-            );
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            order.seller_id,
+            'You are not allowed to process this order',
+        );
 
         if (order.status !== OrderStatus.SHIPPED) {
             throw new BadRequestException(

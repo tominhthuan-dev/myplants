@@ -1,6 +1,6 @@
 import {BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
-import { SellerRepository } from '../seller/seller.repository';
+import { SellerService } from '../seller/seller.service';
 import { SellerStatus } from '../seller/entities/seller-profile.entity';
 
 import { PlantRepository } from './repositories/plant.repository';
@@ -10,7 +10,7 @@ import { PlantStatus } from './entities/plant.entity';
 export class PlantService {
     constructor(
         private readonly plantRepository: PlantRepository,
-        private readonly sellerRepository: SellerRepository,
+        private readonly sellerService: SellerService,
     ) {}
 
     async createPlant(
@@ -24,9 +24,10 @@ export class PlantService {
         },
     ) {
         // 1. Tìm SellerProfile của user
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {throw new NotFoundException('User chưa có Seller Profile',)}
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         // 2. Kiểm tra Seller đã được Admin duyệt chưa
         if (seller.status !== SellerStatus.ACTIVE) {throw new ForbiddenException('Seller chưa được Admin kích hoạt')}
@@ -46,9 +47,10 @@ export class PlantService {
     }
 
     async getMyPlants(userId: number) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if(!seller) {throw new NotFoundException('User chưa có Seller Profile')}
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         return this.plantRepository.findBySellerId(seller.id);
     }
@@ -65,11 +67,10 @@ export class PlantService {
         },
     ) {
         // 1. Tìm Seller Profile
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException('User chưa có Seller Profile');
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         // 2. Tìm Plant
         const plant = await this.plantRepository.findById(plantId);
@@ -79,7 +80,11 @@ export class PlantService {
         }
 
         // 3. Kiểm tra ownership
-        if (plant.seller_id !== seller.id) {throw new ForbiddenException( 'Bạn không có quyền sửa Plant này')}
+        this.sellerService.assertOwnership(
+            seller.id,
+            plant.seller_id,
+            'Bạn không có quyền sửa Plant này',
+        );
 
         // 4. Kiểm tra status
         if (
@@ -117,16 +122,21 @@ export class PlantService {
     }
 
     async submitPlant(userId: number, plantId: number) {
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) { throw new NotFoundException('User chưa có Seller Profile')}
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         const plant = await this.plantRepository.findById(plantId);
 
         if (!plant) { throw new NotFoundException('Plant không tồn tại')}
 
         // Chỉ Seller sở hữu plant mới được submit
-        if (plant.seller_id !== seller.id) {throw new ForbiddenException('Bạn không có quyền submit Plant này',)}
+        this.sellerService.assertOwnership(
+            seller.id,
+            plant.seller_id,
+            'Bạn không có quyền submit Plant này',
+        );
 
         // Chỉ DRAFT mới được submit
         if (plant.status !== PlantStatus.DRAFT) {throw new ForbiddenException('Chỉ Plant ở trạng thái DRAFT mới được submit')}
@@ -141,11 +151,10 @@ export class PlantService {
 
     async publishPlant(userId: number, plantId: number) {
         // 1. Tìm seller profile của user đang đăng nhập
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException('User chưa có Seller Profile');
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         // 2. Tìm Plant
         const plant = await this.plantRepository.findById(plantId);
@@ -155,9 +164,11 @@ export class PlantService {
         }
 
         // 3. Kiểm tra ownership
-        if (plant.seller_id !== seller.id) {
-            throw new ForbiddenException('Bạn không có quyền publish Plant này');
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            plant.seller_id,
+            'Bạn không có quyền publish Plant này',
+        );
 
         // 4. Chỉ Plant APPROVED mới được publish
         if (plant.status !== PlantStatus.APPROVED) {
@@ -177,11 +188,10 @@ export class PlantService {
 
     async getPlantById(userId: number, plantId: number) {
         // 1. Tìm seller profile của user đang đăng nhập
-        const seller = await this.sellerRepository.findByUserId(userId);
-
-        if (!seller) {
-            throw new NotFoundException('User chưa có Seller Profile');
-        }
+        const seller = await this.sellerService.getSellerOrFail(
+            userId,
+            'User chưa có Seller Profile',
+        );
 
         // 2. Tìm Plant
         const plant = await this.plantRepository.findById(plantId);
@@ -191,9 +201,11 @@ export class PlantService {
         }
 
         // 3. Kiểm tra ownership
-        if (plant.seller_id !== seller.id) {
-            throw new ForbiddenException('Bạn không có quyền xem Plant này');
-        }
+        this.sellerService.assertOwnership(
+            seller.id,
+            plant.seller_id,
+            'Bạn không có quyền xem Plant này',
+        );
 
         // 4. Trả về Plant
         return plant;
