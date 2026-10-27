@@ -1,8 +1,14 @@
-import {ConflictException,Injectable,NotFoundException, BadRequestException} from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 
 import { UserRepository } from '../users/repositories/user.repository';
 import { SellerRepository } from './seller.repository';
-import { SellerStatus } from './entities/seller-profile.entity';
+import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { UserRole } from '../users/entities/user.entity';
 
 @Injectable()
@@ -11,6 +17,29 @@ export class SellerService {
         private readonly userRepository: UserRepository,
         private readonly sellerRepository: SellerRepository,
     ) {}
+
+    async getSellerOrFail(
+        userId: number,
+        message = 'Seller không tồn tại',
+    ): Promise<SellerProfile> {
+        const seller = await this.sellerRepository.findByUserId(userId);
+
+        if (!seller) {
+            throw new NotFoundException(message);
+        }
+
+        return seller;
+    }
+
+    assertOwnership(
+        sellerId: number,
+        resourceSellerId: number,
+        message = 'Bạn không có quyền truy cập tài nguyên này',
+    ): void {
+        if (sellerId !== resourceSellerId) {
+            throw new ForbiddenException(message);
+        }
+    }
 
     async registerSeller(
         userId: number,
